@@ -20,8 +20,8 @@ const initializeDbAndServer = async () => {
     })
 
     app.listen(3000, () => {
-      console.log('Server is Running at http://localhost:3000')
-    })
+      console.log('Server is Running at http://localhost:3000');
+    });
   } catch (error) {
     console.log(`DB Error: ${error.message}`)
     process.exit(1)
@@ -47,6 +47,7 @@ const getFollowingPeopleIdsOfUser = async username => {
 const authentication = (request, response, next) => {
   const {tweet} = request.body
   const {tweetId} = request.params
+  const {username} = request
   let jwtToken
   const authHeader = request.headers['authorization']
   if (authHeader !== undefined) {
@@ -73,6 +74,7 @@ const authentication = (request, response, next) => {
 const tweetAccessVerification = async (request, response, next) => {
   const {userId} = request
   const {tweetId} = request.params
+  const {username} = request
   const getTweetQuery = `
     select * 
     from tweet inner join follower
@@ -139,13 +141,21 @@ app.post('/login/', async (request, response) => {
 app.get('/user/tweets/feed/', authentication, async (request, response) => {
   const {username} = request
   const followingPeopleIds = await getFollowingPeopleIdsOfUser(username)
-  const getTweetsQuery = `
-    select username, tweet, date_time as dateTime
-    from user inner join tweet on user.user_id = tweet.user_id
-    where user.user_id in (${followingPeopleIds}) 
-    order by date_time DESC
-    limit 4;`
-  const tweets = await db.all(getTweetsQuery)
+  const tweetsQuery = `
+SELECT
+user.username, tweet.tweet, tweet.date_time AS dateTime
+FROM
+follower
+INNER JOIN tweet
+ON follower.following_user_id = tweet.user_id
+INNER JOIN user
+ON tweet.user_id = user.user_id
+WHERE
+follower.follower_user_id = ${followingPeopleIds}
+ORDER BY
+tweet.date_time DESC
+LIMIT 4;`;
+  const tweets = await db.all(tweetsQuery)
   response.send(tweets)
 })
 
